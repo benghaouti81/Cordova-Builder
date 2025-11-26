@@ -4,6 +4,11 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+# --- هذا هو الحل السحري ---
+# نجبر النظام على استخدام Gradle 8.2.1 بدلاً من 9 المكسور
+env:
+  CORDOVA_ANDROID_GRADLE_DISTRIBUTION_URL: https://services.gradle.org/distributions/gradle-8.2.1-all.zip
+
 jobs:
   build:
     name: Build APK
@@ -12,7 +17,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      # 1. إجبار استخدام جافا 17 (لحل مشكلة Gradle)
+      # نستخدم جافا 17 (متوافقة مع Gradle 8)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -32,32 +37,31 @@ jobs:
           cordova create app com.detector.pro "PI Detector"
           cd app
           
-          # 2. تثبيت محولات التوافق أولاً (AndroidX)
+          # نستخدم منصة أندرويد 12 (المتوافقة مع جافا 17)
+          cordova platform add android@12.0.0
+          
+          # تثبيت محولات التوافق (ضرورية جداً للإضافات القديمة)
           cordova plugin add cordova-plugin-androidx
           cordova plugin add cordova-plugin-androidx-adapter
           
-          # 3. تثبيت إضافة USB (بدون whitelist)
+          # تثبيت إضافة USB
           cordova plugin add https://github.com/xseignard/cordovarduino.git --save
-          
-          # 4. إضافة منصة أندرويد حديثة (Android 12) تتوافق مع جافا 17
-          cordova platform add android@12.0.0
 
-      - name: Inject USB Permission
+      - name: Inject Configuration
         run: |
           cd app
-          # حقن إذن USB في ملف الإعدادات
+          # حقن إذن USB
           sed -i '/<platform name="android">/a \ \ \ \ <config-file parent="/*" target="AndroidManifest.xml"><uses-feature android:name="android.hardware.usb.host" /></config-file>' config.xml
 
       - name: Copy Files
         run: |
-          # نسخ ملفاتك (تأكد أن أسماء الملفات في GitHub صغيرة index.html)
           cp -f index.html app/www/index.html
           cp -f chart.js app/www/chart.js
 
       - name: Build APK
         run: |
           cd app
-          # البناء
+          # بناء التطبيق
           cordova build android --debug --device -- --packageType=apk
 
       - name: Upload APK
