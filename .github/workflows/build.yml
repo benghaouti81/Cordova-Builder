@@ -19,12 +19,17 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # --- الحل الجذري: تثبيت Gradle 8.5 يدوياً ---
-      # هذا سيجبر النظام على تجاهل Gradle 9 المكسور
+      # تثبيت Gradle المتوافق يدوياً
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.5'
+
+      # --- الحل الجديد: تثبيت أدوات البناء الناقصة يدوياً ---
+      - name: Install Android Build Tools
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.2"
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-33"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -39,7 +44,7 @@ jobs:
           cordova create app com.detector.pro "PI Detector"
           cd app
           
-          # نستخدم أندرويد 12 المتوافق مع جافا 17
+          # منصة أندرويد 12
           cordova platform add android@12.0.0
           
           # تثبيت المحولات
@@ -52,7 +57,6 @@ jobs:
       - name: Inject Configuration
         run: |
           cd app
-          # حقن إذن USB
           sed -i '/<platform name="android">/a \ \ \ \ <config-file parent="/*" target="AndroidManifest.xml"><uses-feature android:name="android.hardware.usb.host" /></config-file>' config.xml
 
       - name: Copy Files
@@ -63,7 +67,6 @@ jobs:
       - name: Build APK
         run: |
           cd app
-          # البناء
           cordova build android --debug --device -- --packageType=apk
 
       - name: Upload APK
