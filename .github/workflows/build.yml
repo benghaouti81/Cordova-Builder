@@ -12,7 +12,6 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      # استخدام جافا 17 (ضروري لـ Gradle الحديث)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -27,28 +26,36 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create Cordova Project
+      - name: Create Project Structure
         run: |
+          # إنشاء المشروع
           cordova create app com.detector.pro "PI Detector"
           cd app
-          
-          # إضافة منصة أندرويد
           cordova platform add android
           
-          # تثبيت إضافة USB فقط (حذفنا Whitelist لأنها مدمجة الآن)
-          cordova plugin add https://github.com/xseignard/cordovarduino.git
+          # تثبيت الإضافة بطريقة مباشرة ومؤكدة
+          # نستخدم --save ليتم كتابتها في config.xml
+          cordova plugin add https://github.com/xseignard/cordovarduino.git --save
+          
+          # التأكد من التثبيت (طباعة القائمة)
+          cordova plugin list
 
-      - name: Copy Files
+      - name: Inject Custom Config
         run: |
-          ls -R
-          # تأكد أن أسماء الملفات في مستودعك صغيرة (index.html)
+          cd app
+          # هذا السطر يضيف إذن USB لملف AndroidManifest رغماً عنه
+          sed -i '/<platform name="android">/a \ \ \ \ <config-file parent="/*" target="AndroidManifest.xml"><uses-feature android:name="android.hardware.usb.host" /></config-file>' config.xml
+
+      - name: Copy App Files
+        run: |
           cp -f index.html app/www/index.html
           cp -f chart.js app/www/chart.js
 
       - name: Build APK
         run: |
           cd app
-          # بناء التطبيق
+          # التحضير يجبر النظام على تنزيل الإضافات المذكورة
+          cordova prepare android
           cordova build android --debug --device -- --packageType=apk
 
       - name: Upload APK
