@@ -1,9 +1,7 @@
-
 name: Build Android APK
 on:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -14,11 +12,12 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v3
 
+      # استخدام جافا 11 لأنها الأفضل لـ Cordova حالياً
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '11'
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -34,26 +33,28 @@ jobs:
           cd app
           cordova platform add android
           
-          # تثبيت إضافة USB Serial الضرورية
+          # تثبيت إضافة USB
           cordova plugin add https://github.com/xseignard/cordovarduino.git
-          
-          # تثبيت إضافة القوائم البيضاء (للحماية)
           cordova plugin add cordova-plugin-whitelist
 
-      - name: Move App Files
+      - name: Copy Files (Detailed)
         run: |
-          # حذف ملفات القالب الافتراضي
-          rm app/www/*
+          echo "Listing current files to debug..."
+          ls -R
           
-          # نقل ملفاتك إلى مجلد التطبيق
-          cp index.html app/www/
-          cp chart.js app/www/
-          # cp icon.png app/www/ (فعل هذا السطر فقط إذا رفعت أيقونة)
+          # النسخ بقوة (Force copy)
+          # تأكد أن أسماء ملفاتك في المستودع صغيرة (small letters)
+          cp -f index.html app/www/index.html || echo "Error: index.html not found!"
+          cp -f chart.js app/www/chart.js || echo "Error: chart.js not found!"
+          
+          echo "Files inside app/www:"
+          ls app/www/
 
       - name: Build APK
         run: |
           cd app
-          cordova build android --debug --device
+          # استخدام أمر بناء محدد لتجنب الأخطاء
+          cordova build android --debug --device -- --packageType=apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v3
