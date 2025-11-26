@@ -12,41 +12,46 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
+      # نعود لجافا 11 لأنها أكثر استقراراً مع الإضافات القديمة
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '11'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '16'
 
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create Project Structure
+      - name: Create Project
         run: |
-          # إنشاء المشروع
           cordova create app com.detector.pro "PI Detector"
           cd app
-          cordova platform add android
           
-          # تثبيت الإضافة بطريقة مباشرة ومؤكدة
-          # نستخدم --save ليتم كتابتها في config.xml
+          # نستخدم نسخة أندرويد مستقرة (ليست الأحدث جداً لضمان التوافق)
+          cordova platform add android@10.1.1
+          
+          # --- هنا السر: تثبيت المحولات لإصلاح الإضافة القديمة ---
+          cordova plugin add cordova-plugin-androidx
+          cordova plugin add cordova-plugin-androidx-adapter
+          
+          # تثبيت إضافة USB
           cordova plugin add https://github.com/xseignard/cordovarduino.git --save
           
-          # التأكد من التثبيت (طباعة القائمة)
-          cordova plugin list
+          # تثبيت القائمة البيضاء
+          cordova plugin add cordova-plugin-whitelist
 
-      - name: Inject Custom Config
+      - name: Inject Configuration
         run: |
           cd app
-          # هذا السطر يضيف إذن USB لملف AndroidManifest رغماً عنه
+          # إضافة إذن USB يدوياً لملف الإعدادات
           sed -i '/<platform name="android">/a \ \ \ \ <config-file parent="/*" target="AndroidManifest.xml"><uses-feature android:name="android.hardware.usb.host" /></config-file>' config.xml
 
-      - name: Copy App Files
+      - name: Copy Files
         run: |
           cp -f index.html app/www/index.html
           cp -f chart.js app/www/chart.js
@@ -54,7 +59,7 @@ jobs:
       - name: Build APK
         run: |
           cd app
-          # التحضير يجبر النظام على تنزيل الإضافات المذكورة
+          # التحضير ثم البناء
           cordova prepare android
           cordova build android --debug --device -- --packageType=apk
 
