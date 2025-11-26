@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- هذا السطر يسمح للتطبيق بالوصول للملفات والسكربتات الداخلية -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *; img-src 'self' data: content:;">
+    
+    <title>PI Detector Pro Dashboard</title>
+    
+    <!-- ضروري جداً لعمل Cordova -->
+    <script src="cordova.js"></script>
+    <!-- مكتبة الرسم البياني المحلية -->
+    <script src="chart.js"></script>
+    
+    <style>
+        :root { --bg-color: #121212; --card-bg: #1e1e1e; --text-color: #e0e0e0; --accent-color: #00e676; --danger-color: #ff1744; --warn-color: #ff9100; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 10px; user-select: none; -webkit-user-select: none; }
+        .container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1fr 350px; gap: 15px; padding-bottom: 50px; }
+        @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+        .card { background-color: var(--card-bg); border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); margin-bottom: 15px; }
+        h2 { margin: 0 0 15px 0; color: var(--accent-color); font-size: 1.2rem; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .control-group { margin-bottom: 12px; background: #252525; padding: 10px; border-radius: 8px; }
+        label { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9em; font-weight: 600; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--accent-color); }
+        .value-display { color: var(--accent-color); }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { background-color: #333; color: white; border: 1px solid #444; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem; transition: all 0.2s; }
+        button:active { transform: scale(0.95); }
+        button.primary { background-color: var(--accent-color); color: #000; border: none; }
+        button.danger { background-color: var(--danger-color); border: none; }
+        button.warn { background-color: var(--warn-color); color: #000; border: none; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .status-bar { background: var(--card-bg); padding: 10px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .connection-status { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #555; margin-left: 8px; }
+        .readings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+        .reading-box { text-align: center; background: #2a2a2a; padding: 10px; border-radius: 8px; border: 1px solid #333; }
+        .reading-val { font-size: 1.4em; font-weight: bold; color: #fff; }
+        .reading-label { font-size: 0.75em; color: #888; margin-bottom: 4px; }
+        .discrim-bar-container { height: 20px; background: #333; border-radius: 10px; overflow: hidden; margin-top: 10px; position: relative; }
+        .discrim-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #ff9100, #ffea00); transition: width 0.1s; }
+        .discrim-text { position: absolute; width: 100%; text-align: center; top: 0; line-height: 20px; font-size: 0.8em; color: #000; font-weight: bold; }
+    </style>
+</head>
+
+<body>
+
+    <div class="status-bar">
+        <div style="display: flex; align-items: center;">
+            <span id="statusDot" class="connection-status"></span>
+            <span id="statusText" style="font-weight: bold;">جاري التحميل...</span>
+        </div>
+        <div>
+            <!-- تم تغيير الزر ليستدعي دالة Cordova -->
+            <button onclick="connectSerial()" class="primary">اتصال (USB)</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Main Visuals -->
+        <div class="main-content">
+            <div class="card">
+                <h2>تحليل الإشارة (Signal)</h2>
+                <div class="readings">
+                    <div class="reading-box">
+                        <div class="reading-label">S1 (Signal)</div>
+                        <div id="valS1" class="reading-val">0</div>
+                    </div>
+                    <div class="reading-box">
+                        <div class="reading-label">S2 (Noise)</div>
+                        <div id="valS2" class="reading-val">0</div>
+                    </div>
+                    <div class="reading-box">
+                        <div class="reading-label">S3 (Ground)</div>
+                        <div id="valS3" class="reading-val">0</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="signalChart"></canvas>
+                </div>
+
+                <div style="margin-top: 15px;">
+                    <label>مؤشر التمييز (Ratio)</label>
+                    <div class="discrim-bar-container">
+                        <div id="discrimBar" class="discrim-bar"></div>
+                        <div id="discrimText" class="discrim-text">0.00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Sidebar -->
+        <div class="sidebar">
+            <!-- Audio & Filters -->
+            <div class="card">
+                <h2>التحكم والصوت</h2>
+                <div class="btn-grid">
+                    <button onclick="calibrate()" class="warn">موازنة (Reset)</button>
+                    <button onclick="toggleAudio()" id="btnAudio">الصوت: OFF</button>
+                </div>
+                <br>
+                <div class="control-group">
+                    <label>العتبة (Threshold) <span id="disp_thresh" class="value-display">50</span></label>
+                    <input type="range" min="0" max="500" value="50" oninput="updateLocalSetting('threshold', this.value, 'disp_thresh')">
+                </div>
+                <div class="control-group">
+                    <label>المكسب (Gain) <span id="disp_gain" class="value-display">1</span></label>
+                    <input type="range" min="1" max="20" value="1" oninput="updateLocalSetting('gain', this.value, 'disp_gain')">
+                </div>
+                <div class="control-group">
+                    <label>الفلتر (Filter) <span id="disp_filter" class="value-display">5</span></label>
+                    <input type="range" min="0" max="9" value="5" oninput="updateLocalSetting('filter', this.value, 'disp_filter')">
+                </div>
+            </div>
+
+            <!-- Hardware Settings -->
+            <div class="card">
+                <h2>إعدادات الجهاز (Hardware)</h2>
+                <div class="control-group">
+                    <label>Delay <span id="disp_start" class="value-display">0</span></label>
+                    <input type="range" min="0" max="100" value="0" oninput="updateHW('D', this.value, 'disp_start')">
+                </div>
+                <div class="control-group">
+                    <label>Sample 1 <span id="disp_s1" class="value-display">100</span></label>
+                    <input type="range" min="10" max="500" value="100" oninput="updateHW('S1', this.value, 'disp_s1')">
+                </div>
+                <div class="control-group">
+                    <label>Sample 2 <span id="disp_s2" class="value-display">200</span></label>
+                    <input type="range" min="20" max="600" value="200" oninput="updateHW('S2', this.value, 'disp_s2')">
+                </div>
+                <div class="control-group">
+                    <label>Sample 3 <span id="disp_s3" class="value-display">400</span></label>
+                    <input type="range" min="30" max="800" value="400" oninput="updateHW('S3', this.value, 'disp_s3')">
+                </div>
+                <div class="control-group">
+                    <label>Pulse Width <span id="disp_pulse" class="value-display">150</span></label>
+                    <input type="range" min="50" max="500" value="150" oninput="updateHW('P', this.value, 'disp_pulse')">
+                </div>
+                <div class="control-group">
+                    <label>Freq <span id="disp_freq" class="value-display">500</span></label>
+                    <input type="range" min="50" max="1000" value="500" step="10" oninput="updateFrequency(this.value)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- متغيرات Cordova ---
+        let serial; // كائن الاتصال الخاص بكوردوفا
+        
+        // --- متغيرات النظام الأصلي ---
+        let rawS1 = 0, rawS2 = 0, rawS3 = 0;
+        let filtS1 = 0, filtS2 = 0, filtS3 = 0;
+        let baseS1 = 0, baseS2 = 0, baseS3 = 0;
+        
+        let settings = { threshold: 50, gain: 1, filterStrength: 5 };
+        
+        // Audio
+        let audioCtx, oscillator, gainNode;
+        let isAudioEnabled = false;
+
+        // --- إعداد الرسم البياني ---
+        const ctx = document.getElementById('signalChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(50).fill(''),
+                datasets: [
+                    { label: 'S1', data: Array(50).fill(0), borderColor: '#00e676', borderWidth: 2, tension: 0.3, pointRadius: 0 },
+                    { label: 'S3', data: Array(50).fill(0), borderColor: '#2979ff', borderWidth: 1, tension: 0.3, pointRadius: 0 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: { intersect: false },
+                scales: { y: { grid: { color: '#333' }, ticks: { color: '#888' } }, x: { display: false } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // --- 1. تهيئة النظام (Cordova Init) ---
+        document.addEventListener("deviceready", onDeviceReady, false);
+
+        function onDeviceReady() {
+            // التحقق من تحميل إضافة Serial
+            if(cordova.plugins && cordova.plugins.serial) {
+                serial = cordova.plugins.serial;
+                document.getElementById('statusText').innerText = "جاهز للاتصال";
+            } else {
+                document.getElementById('statusText').innerText = "خطأ: الإضافة غير موجودة";
+            }
+            
+            // تهيئة الصوت (Android يحتاج لمسة مستخدم)
+            initAudio();
+        }
+
+        // --- 2. الاتصال (Cordova Logic) ---
+        function connectSerial() {
+            if(!serial) return alert("النظام غير جاهز بعد");
+
+            serial.requestPermission(
+                function(success) {
+                    // إذا وافق المستخدم، نفتح المنفذ
+                    serial.open(
+                        { baudRate: 115200 },
+                        function(success) {
+                            document.getElementById('statusDot').style.backgroundColor = "#00e676";
+                            document.getElementById('statusText').innerText = "متصل";
+                            document.getElementById('statusText').style.color = "#00e676";
+                            
+                            // بدء الاستماع للبيانات
+                            startReadLoop();
+                        },
+                        function(err) { alert("فشل فتح المنفذ: " + err); }
+                    );
+                },
+                function(err) { alert("تم رفض الإذن: " + err); }
+            );
+        }
+
+        // --- 3. قراءة البيانات (Buffer Handling) ---
+        function startReadLoop() {
+            serial.registerReadCallback(
+                function(data) {
+                    // البيانات تأتي بايتات (ArrayBuffer)
+                    var view = new Uint8Array(data);
+                    // تحويل لنص
+                    var str = "";
+                    for(var i=0; i<view.length; i++) {
+                        str += String.fromCharCode(view[i]);
+                    }
+                    // إرسال للمعالجة
+                    handleRawData(str);
+                },
+                function(err) { console.error(err); }
+            );
+        }
+
+        let buffer = "";
+        function handleRawData(chunk) {
+            buffer += chunk;
+            let lines = buffer.split('\n');
+            buffer = lines.pop(); // الاحتفاظ بالجزء الناقص
+
+            for (let line of lines) {
+                processData(line.trim());
+            }
+        }
+
+        // --- 4. إرسال الأوامر (Cordova Write) ---
+        function sendCommand(cmd) {
+            if(serial) {
+                // إضافة سطر جديد للأمر
+                serial.write(cmd + "\n", function(){}, function(err){ console.error(err); });
+            }
+        }
+
+        // --- 5. منطق البرنامج (نفس كودك الأصلي) ---
+        function processData(line) {
+            const parts = line.split(',');
+            if (parts.length !== 3) return;
+
+            rawS1 = parseInt(parts[0]);
+            rawS2 = parseInt(parts[1]);
+            rawS3 = parseInt(parts[2]);
+            if (isNaN(rawS1)) return;
+
+            // فلترة
+            let alpha = 1.0 - (settings.filterStrength / 10.0);
+            if (alpha < 0.05) alpha = 0.05;
+
+            filtS1 = (alpha * filtS1) + ((1.0 - alpha) * rawS1);
+            filtS2 = (alpha * filtS2) + ((1.0 - alpha) * rawS2);
+            filtS3 = (alpha * filtS3) + ((1.0 - alpha) * rawS3);
+
+            let signalS1 = Math.abs(filtS1 - baseS1);
+            let signalS3 = Math.abs(filtS3 - baseS3);
+            let finalSignal = signalS1 * settings.gain;
+
+            let ratio = (signalS1 > 1) ? (signalS3 / signalS1) : 0;
+
+            updateUI(finalSignal, ratio);
+            updateAudio(finalSignal, ratio);
+        }
+
+        function updateUI(signal, ratio) {
+            document.getElementById('valS1').innerText = Math.round(filtS1);
+            document.getElementById('valS2').innerText = Math.round(filtS2);
+            document.getElementById('valS3').innerText = Math.round(filtS3);
+
+            let barWidth = Math.min(ratio * 100, 100);
+            document.getElementById('discrimBar').style.width = barWidth + "%";
+            document.getElementById('discrimText').innerText = ratio.toFixed(2);
+
+            const data = chart.data.datasets;
+            data[0].data.push(filtS1);
+            data[0].data.shift();
+            data[1].data.push(filtS3);
+            data[1].data.shift();
+            chart.update('none');
+        }
+
+        // --- التحكم والإعدادات ---
+        function updateLocalSetting(key, value, dispId) {
+            settings[key] = parseFloat(value);
+            document.getElementById(dispId).innerText = value;
+        }
+
+        function updateHW(prefix, value, dispId) {
+            document.getElementById(dispId).innerText = value;
+            sendCommand(prefix + value);
+        }
+
+        function updateFrequency(freq) {
+            document.getElementById('disp_freq').innerText = freq;
+            let period = 1000000 / freq;
+            let delay = Math.floor(period > 200 ? period - 200 : 0);
+            sendCommand("R" + delay);
+        }
+
+        function calibrate() {
+            baseS1 = filtS1; baseS2 = filtS2; baseS3 = filtS3;
+            document.getElementById('valS1').style.color = '#00e676';
+            setTimeout(() => document.getElementById('valS1').style.color = 'white', 500);
+        }
+
+        // --- نظام الصوت ---
+        function initAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            oscillator = audioCtx.createOscillator();
+            gainNode = audioCtx.createGain();
+            oscillator.type = 'sine';
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            gainNode.gain.value = 0;
+        }
+
+        function toggleAudio() {
+            if (!audioCtx) initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            isAudioEnabled = !isAudioEnabled;
+            const btn = document.getElementById('btnAudio');
+            if (isAudioEnabled) {
+                btn.innerText = "الصوت: ON";
+                btn.style.backgroundColor = "var(--accent-color)";
+                btn.style.color = "black";
+            } else {
+                btn.innerText = "الصوت: OFF";
+                btn.style.backgroundColor = "#333";
+                btn.style.color = "white";
+                gainNode.gain.value = 0;
+            }
+        }
+
+        function updateAudio(signalStrength, ratio) {
+            if (!isAudioEnabled || !audioCtx) return;
+            if (signalStrength > settings.threshold) {
+                let volume = Math.min((signalStrength - settings.threshold) / 200, 1.0);
+                gainNode.gain.setTargetAtTime(volume, audioCtx.currentTime, 0.05);
+                
+                let freq = 300 + (ratio * 1200);
+                freq = Math.max(200, Math.min(freq, 3000));
+                oscillator.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
+            } else {
+                gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+            }
+        }
+        
+        // Calibrate on Start
+        setTimeout(calibrate, 2000);
+    </script>
+</body>
+</html>
