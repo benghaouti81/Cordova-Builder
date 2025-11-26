@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      # --- التصحيح هنا: استخدام جافا 17 ---
+      # استخدام جافا 17 (ضروري لـ Gradle الحديث)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -32,12 +32,11 @@ jobs:
           cordova create app com.detector.pro "PI Detector"
           cd app
           
-          # إضافة منصة أندرويد (سيقوم بتحميل أحدث نسخة متوافقة مع جافا 17)
+          # إضافة منصة أندرويد
           cordova platform add android
           
-          # تثبيت إضافة USB
+          # تثبيت إضافة USB فقط (حذفنا Whitelist لأنها مدمجة الآن)
           cordova plugin add https://github.com/xseignard/cordovarduino.git
-          cordova plugin add cordova-plugin-whitelist
 
       - name: Copy Files
         run: |
