@@ -9,20 +9,22 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     steps:
+      # تحديث إلى v4
       - name: Checkout Source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # استخدام جافا 11 لأنها الأفضل لـ Cordova حالياً
+      # تحديث إلى v4
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
 
+      # تحديث إلى v4
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '16'
+          node-version: '18'
 
       - name: Install Cordova
         run: npm install -g cordova
@@ -37,27 +39,26 @@ jobs:
           cordova plugin add https://github.com/xseignard/cordovarduino.git
           cordova plugin add cordova-plugin-whitelist
 
-      - name: Copy Files (Detailed)
+      - name: Copy Files
         run: |
-          echo "Listing current files to debug..."
+          # عرض الملفات للتأكد
           ls -R
           
-          # النسخ بقوة (Force copy)
-          # تأكد أن أسماء ملفاتك في المستودع صغيرة (small letters)
-          cp -f index.html app/www/index.html || echo "Error: index.html not found!"
-          cp -f chart.js app/www/chart.js || echo "Error: chart.js not found!"
+          # نسخ الملفات (تأكد أن الأسماء في المستودع صغيرة index.html)
+          cp -f index.html app/www/index.html
+          cp -f chart.js app/www/chart.js
           
-          echo "Files inside app/www:"
-          ls app/www/
+          # إذا كان لديك أيقونة، أزل علامة # من السطر التالي
+          # cp -f icon.png app/www/icon.png || true
 
       - name: Build APK
         run: |
           cd app
-          # استخدام أمر بناء محدد لتجنب الأخطاء
           cordova build android --debug --device -- --packageType=apk
 
+      # التحديث الأهم: استخدام v4 لرفع التطبيق
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: detector-app
           path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
