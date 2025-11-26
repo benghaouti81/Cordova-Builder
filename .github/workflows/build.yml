@@ -1,1 +1,62 @@
 
+name: Build Android APK
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install Cordova
+        run: npm install -g cordova
+
+      - name: Create Cordova Project
+        run: |
+          cordova create app com.detector.pro "PI Detector"
+          cd app
+          cordova platform add android
+          
+          # تثبيت إضافة USB Serial الضرورية
+          cordova plugin add https://github.com/xseignard/cordovarduino.git
+          
+          # تثبيت إضافة القوائم البيضاء (للحماية)
+          cordova plugin add cordova-plugin-whitelist
+
+      - name: Move App Files
+        run: |
+          # حذف ملفات القالب الافتراضي
+          rm app/www/*
+          
+          # نقل ملفاتك إلى مجلد التطبيق
+          cp index.html app/www/
+          cp chart.js app/www/
+          # cp icon.png app/www/ (فعل هذا السطر فقط إذا رفعت أيقونة)
+
+      - name: Build APK
+        run: |
+          cd app
+          cordova build android --debug --device
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: detector-app
+          path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
